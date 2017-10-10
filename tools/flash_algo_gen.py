@@ -56,6 +56,7 @@ ALGO_START_ADDRESSES = {
     'STM32F405':    0x20000000,	
     'STM32F071':    0x20000000,
     'STM32F031':    0x20000000,	
+    'STM32L486':    0x20000000,
 }
 
 class FlashInfo(object):
