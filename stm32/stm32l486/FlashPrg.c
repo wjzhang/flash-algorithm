@@ -30,12 +30,12 @@
 *
 *       Register definitions
 */
-#define FLASH_ACR_REG        (*(volatile unsigned long *)0x40023C00)
-#define FLASH_KEYR_REG       (*(volatile unsigned long *)0x40023C04)
-#define FLASH_OPTKEYR_REG    (*(volatile unsigned long *)0x40023C08)
-#define FLASH_SR_REG         (*(volatile unsigned long *)0x40023C0C)
-#define FLASH_CR_REG         (*(volatile unsigned long *)0x40023C10)
-#define FLASH_OPTCR_REG      (*(volatile unsigned long *)0x40023C14)
+#define FLASH_ACR_REG        (*(volatile unsigned long *)0x40022000)
+#define FLASH_KEYR_REG       (*(volatile unsigned long *)0x40022008)
+#define FLASH_OPTKEYR_REG    (*(volatile unsigned long *)0x4002200C)
+#define FLASH_SR_REG         (*(volatile unsigned long *)0x40022010)
+#define FLASH_CR_REG         (*(volatile unsigned long *)0x40022014)
+
 
 	
 
@@ -261,17 +261,17 @@ int EraseSector (unsigned long adr) {
 int ProgramPage (unsigned long adr, unsigned long sz, unsigned char *buf) {
     volatile U32* p32Dest;
     volatile U32* p32Src;
-    volatile U64* p64Dest;
-    volatile U64* p64Src;
+
 	U32 cr = 0;
 	U32 sr = 0;
 	unsigned long i = 0;
     unsigned long left = (sz%8 != 0) ? 1 : 0;
     
 	
-    p64Dest = (volatile U64*)(adr & 0xFFFFFFF8);
-    p64Src  = (volatile U64*)((unsigned long)buf & 0xFFFFFFF8);    // Always 64-bit aligned. Made sure by CMSIS-DAP firmware
-	//
+    p32Dest = (volatile U32*)(adr & 0xFFFFFFF8); // aligned at 64-bit
+    p32Src  = (volatile U32*)(buf);    // Always 32-bit aligned. Made sure by CMSIS-DAP firmware
+    
+    //
 	// adr is always aligned to "Programming Page Size" specified in table in FlashDev.c
     // sz is always a multiple of "Programming Page Size"
 	//
@@ -289,20 +289,18 @@ int ProgramPage (unsigned long adr, unsigned long sz, unsigned char *buf) {
     //clear all error flag
     clearErrorFlags();
     
-    /*set PG bit*/
-    cr = FLASH_CR_REG;
-    cr |= FLASH_CR_PG;
-    FLASH_CR_REG = cr;
 
 	while(i < (sz/8 + left))
 	{
-        p32Dest = (U32*)p64Dest;
-        p32Src  = (U32*)p64Src;
-		
+        /*set PG bit*/
+        cr = FLASH_CR_REG;
+        cr |= FLASH_CR_PG;
+        FLASH_CR_REG = cr;
+	
 		//first word
         *p32Dest++ = *p32Src++;
         //second word
-        p32Dest = p32Src;
+        *p32Dest++ = *p32Src++;
         
 		/*wait SR BSY cleared*/
 		do{
@@ -317,7 +315,7 @@ int ProgramPage (unsigned long adr, unsigned long sz, unsigned char *buf) {
         }
         
 		/*check program word is ok*/
-		if(*p64Src != *p64Dest)
+		if((*(p32Src - 2) != *(p32Dest - 2)) || (*(p32Src - 1) != *(p32Dest - 1)))
 		{
 			/*clear PG bit*/
 			cr = FLASH_CR_REG;
@@ -326,8 +324,7 @@ int ProgramPage (unsigned long adr, unsigned long sz, unsigned char *buf) {
 			
 			return 1;
 		}
-		p64Dest++;
-		p64Src++;
+
 		i++;	
 	}
 	
