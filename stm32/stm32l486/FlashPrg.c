@@ -269,8 +269,8 @@ int ProgramPage (unsigned long adr, unsigned long sz, unsigned char *buf) {
     unsigned long left = (sz%8 != 0) ? 1 : 0;
     
 	
-    p64Dest = (volatile U64*)adr;
-    p64Src = (volatile U64*)buf;    // Always 32-bit aligned. Made sure by CMSIS-DAP firmware
+    p64Dest = (volatile U64*)(adr & 0xFFFFFFF8);
+    p64Src  = (volatile U64*)((unsigned long)buf & 0xFFFFFFF8);    // Always 64-bit aligned. Made sure by CMSIS-DAP firmware
 	//
 	// adr is always aligned to "Programming Page Size" specified in table in FlashDev.c
     // sz is always a multiple of "Programming Page Size"
@@ -289,14 +289,15 @@ int ProgramPage (unsigned long adr, unsigned long sz, unsigned char *buf) {
     //clear all error flag
     clearErrorFlags();
     
+    /*set PG bit*/
+    cr = FLASH_CR_REG;
+    cr |= FLASH_CR_PG;
+    FLASH_CR_REG = cr;
+
 	while(i < (sz/8 + left))
 	{
         p32Dest = (U32*)p64Dest;
         p32Src  = (U32*)p64Src;
-		/*first set PG bit/Program size: 32bit in CR, then write data to flash address*/
-		cr = FLASH_CR_REG;
-		cr |= FLASH_CR_PG;
-		FLASH_CR_REG = cr;
 		
 		//first word
         *p32Dest++ = *p32Src++;
@@ -307,6 +308,13 @@ int ProgramPage (unsigned long adr, unsigned long sz, unsigned char *buf) {
 		do{
 			sr = FLASH_SR_REG;
 		}while((sr & FLASH_SR_BSY) == FLASH_SR_BSY);
+        
+        /*check EOP, clear it */
+        sr = FLASH_SR_REG;
+        if((sr & FLASH_SR_EOP) == FLASH_SR_EOP)
+        {    
+            FLASH_SR_REG =  FLASH_SR_EOP;
+        }
         
 		/*check program word is ok*/
 		if(*p64Src != *p64Dest)
