@@ -224,7 +224,7 @@ int EraseSector (unsigned long adr) {
     
 	/*first set PER bit, erase sector, last set STRT bit*/
 	sector = getSector(adr);
-    if (sector >= 0xFF) {
+    if (sector >= 0x100) {
         blank = FLASH_CR_BANK2;
         sector = sector & 0x000000FF;
     }
